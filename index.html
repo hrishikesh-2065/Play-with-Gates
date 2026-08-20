@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LogicForge — Gate Simulator</title>
+<style>
+  :root{
+    --bg:#0B0F19;
+    --canvasBg:#021210;
+    --canvasGradA:#064E3B;
+    --card:#0F172A;
+    --cardBorder:rgba(94,234,212,0.18);
+    --cardBorderHover:rgba(94,234,212,0.45);
+    --text:#E5EEF5;
+    --textDim:#8CA0AF;
+    --emerald:#22C55E;
+    --emeraldGlow:rgba(34,197,94,0.65);
+    --cyan:#22D3EE;
+    --low:#334155;
+    --hiz:#EAB308;
+    --danger:#EF4444;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:Inter,ui-sans-serif,system-ui,sans-serif;overflow:hidden;user-select:none;}
+  .mono{font-family:'JetBrains Mono','IBM Plex Mono',ui-monospace,monospace;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#1E293B;border-radius:6px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  .glass{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+  button{font-family:inherit;cursor:pointer;}
+
+  @keyframes flowGreen{to{stroke-dashoffset:-40;}}
+  .wire-live{stroke-dasharray:10 6;animation:flowGreen 0.9s linear infinite;}
+  @keyframes hizDash{to{stroke-dashoffset:-20;}}
+  .wire-hiz{stroke-dasharray:5 5;animation:hizDash 1.3s linear infinite;}
+  @keyframes badgePulse{0%,100%{box-shadow:0 0 0px rgba(34,197,94,0);}50%{box-shadow:0 0 28px rgba(34,197,94,0.55);}}
+  .badge-pulse{animation:badgePulse 1.6s ease-in-out infinite;}
+  @keyframes popIn{from{opacity:0;transform:translateY(6px) scale(.96);}to{opacity:1;transform:translateY(0) scale(1);}}
+
+  #app{width:100%;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+  /* HEADER */
+  #header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;
+    background:rgba(15,23,42,0.75);border-bottom:1px solid var(--cardBorder);}
+  #header .brand{display:flex;align-items:center;gap:12px;}
+  #header .brand .icon{padding:6px;border-radius:8px;background:rgba(34,197,94,0.12);border:1px solid var(--cardBorder);}
+  #header .brand .title{font-weight:600;font-size:15px;}
+  #header .brand .title span{color:var(--textDim);font-weight:400;}
+  #header .brand .sub{font-size:11px;color:var(--textDim);}
+  .iconbtn{padding:8px;border-radius:8px;background:rgba(255,255,255,0.03);
+    border:1px solid var(--cardBorder);color:var(--textDim);transition:border-color .15s,color .15s;
+    display:flex;align-items:center;justify-content:center;}
+  .iconbtn:hover{border-color:var(--cardBorderHover);color:var(--text);}
+  #headerRight{display:flex;align-items:center;gap:8px;}
+  @keyframes shineSweep{0%{background-position:200% 50%;}100%{background-position:-200% 50%;}}
+  .signature-name{
+    font-family:'Segoe Script','Brush Script MT',cursive,ui-sans-serif,sans-serif;
+    font-weight:700;font-size:19px;letter-spacing:.02em;margin-right:6px;user-select:none;padding:0 2px;
+    background:linear-gradient(90deg,#22C55E 0%,#22D3EE 22%,#F8FAFC 40%,#22D3EE 58%,#F472B6 78%,#22C55E 100%);
+    background-size:280% 100%;
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:shineSweep 3.2s linear infinite;
+    filter:drop-shadow(0 0 6px rgba(34,211,238,0.55)) drop-shadow(0 0 14px rgba(34,197,94,0.35));
+  }
+  #testBtn{display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:8px;font-weight:600;
+    font-size:13px;border:none;background:var(--emerald);color:#052E16;box-shadow:0 0 20px var(--emeraldGlow);
+    transition:transform .08s;}
+  #testBtn:active{transform:scale(.95);}
+  #testBtn.editing{background:var(--cyan);box-shadow:0 0 20px rgba(34,211,238,.55);}
+
+  /* BODY LAYOUT */
+  #body{flex:1;display:flex;overflow:hidden;position:relative;}
+
+  /* TOOLBOX */
+  #toolbox{width:236px;flex-shrink:0;overflow-y:auto;padding:12px;
+    background:rgba(15,23,42,0.55);border-right:1px solid var(--cardBorder);transition:margin-left .25s ease, opacity .2s ease;}
+  .section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--textDim);margin:0 0 8px 4px;}
+  .tool-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;
+    background:rgba(255,255,255,0.03);border:1px solid var(--cardBorder);margin-bottom:6px;cursor:grab;
+    transition:border-color .15s;}
+  .tool-item:hover{border-color:var(--cardBorderHover);}
+  .tool-item .glyph-wrap{width:28px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .tool-item .label{font-size:12.5px;font-weight:500;line-height:1.2;}
+  .tool-item .sub{font-size:10px;color:var(--textDim);}
+  .tool-item .plus{margin-left:auto;color:var(--textDim);flex-shrink:0;}
+  .preset-btn{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:10px;font-size:12px;
+    background:rgba(34,211,238,0.06);border:1px solid var(--cardBorder);color:var(--cyan);margin-bottom:6px;
+    transition:border-color .15s;}
+  .preset-btn:hover{border-color:var(--cyan);}
+
+  /* CANVAS AREA */
+  #canvasArea{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+  #zoomCtrls{position:absolute;z-index:20;top:12px;right:12px;display:flex;gap:6px;}
+  #fullscreenBtn{position:absolute;z-index:20;top:12px;left:12px;}
+  #exitFsBtn{position:absolute;z-index:30;top:12px;left:12px;display:none;}
+  #modeHint{position:absolute;z-index:20;bottom:14px;left:50%;transform:translateX(-50%);
+    font-size:11px;color:var(--textDim);background:rgba(15,23,42,0.85);padding:6px 12px;border-radius:20px;
+    border:1px solid var(--cardBorder);pointer-events:none;white-space:nowrap;}
+
+  #canvasWrap{flex:1;overflow:hidden;position:relative;cursor:grab;
+    background-color:var(--canvasBg);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(6,78,59,0.13), transparent 60%),
+      linear-gradient(rgba(34,197,94,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34,197,94,0.06) 1px, transparent 1px);
+    background-position:0 0, 0 0, 0 0;
+    background-size:auto, 24px 24px, 24px 24px;}
+  #canvasWrap.panning{cursor:grabbing;}
+  #world{position:absolute;left:0;top:0;width:1500px;height:900px;transform-origin:0 0;}
+  #wireSvg{position:absolute;inset:0;pointer-events:none;overflow:visible;width:1500px;height:900px;}
+
+  .node{position:absolute;border-radius:12px;background:rgba(15,23,42,0.72);
+    border:1.5px solid var(--cardBorder);cursor:grab;transition:border-color .15s, box-shadow .2s;}
+  .node.test-mode{cursor:pointer;}
+  .node .nlabel{position:absolute;top:-20px;left:0;font-size:10px;color:var(--textDim);}
+  .node .ninner{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 8px;}
+  .pin{position:absolute;width:12px;height:12px;background:var(--card);border:2px solid var(--cyan);cursor:crosshair;}
+  .pin.in{border-radius:3px;}
+  .pin.out{border-radius:50%;}
+  .switch-btn{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;font-size:12px;
+    font-weight:700;background:rgba(51,65,85,0.35);color:#94A3B8;border:1px solid #475569;}
+  .switch-btn .dot{width:8px;height:8px;border-radius:50%;background:#64748B;}
+  .switch-btn.on{background:rgba(34,197,94,0.15);color:var(--emerald);border-color:var(--emerald);}
+  .switch-btn.on .dot{background:var(--emerald);box-shadow:0 0 6px var(--emerald);}
+  .led-circle{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:rgba(51,65,85,0.3);border:2px solid #475569;}
+  .led-circle.on{background:rgba(34,197,94,0.2);border-color:var(--emerald);box-shadow:0 0 16px var(--emeraldGlow);}
+  .led-circle.hiz{border-color:var(--hiz);}
+  .led-val{font-size:10px;color:var(--textDim);}
+  .gate-glabel{font-size:10px;font-weight:600;color:var(--textDim);}
+  .gate-glabel.on{color:var(--emerald);}
+
+  /* TRUTH STRIP */
+  #truthStrip{background:rgba(15,23,42,0.85);border-top:1px solid var(--cardBorder);
+    padding:10px 16px;display:flex;align-items:center;gap:14px;overflow-x:auto;flex-shrink:0;transition:margin-bottom .25s ease;}
+  #truthStrip .strip-title{font-size:11px;font-weight:600;text-transform:uppercase;color:var(--textDim);flex-shrink:0;}
+  .chip{padding:5px 10px;border-radius:6px;font-size:11px;font-family:'JetBrains Mono',monospace;
+    background:rgba(255,255,255,0.02);border:1px solid var(--cardBorder);color:var(--textDim);white-space:nowrap;}
+  .chip.current{background:rgba(34,197,94,0.15);border-color:var(--emerald);color:var(--emerald);}
+
+  /* RIGHT PANEL */
+  #rightPanel{width:320px;flex-shrink:0;overflow-y:auto;padding:16px;
+    background:rgba(15,23,42,0.55);border-left:1px solid var(--cardBorder);transition:margin-right .25s ease, opacity .2s ease;}
+  #verifyToggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;
+    color:var(--text);margin-bottom:12px;padding:0;}
+  #verifyToggle .vt-label{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+  #verifyBox{border-radius:12px;padding:16px;background:var(--card);border:1px solid var(--cardBorder);}
+  #verifyBox label{font-size:11px;font-weight:500;color:var(--textDim);display:block;margin-bottom:6px;}
+
+  /* GOAL / AUTO-DETECT PANEL */
+  .goal-panel{border-radius:14px;padding:12px;margin-bottom:16px;position:relative;overflow:hidden;
+    background:linear-gradient(145deg, rgba(34,197,94,0.07), rgba(34,211,238,0.05));
+    border:1px solid rgba(148,233,214,0.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+  .goal-panel::before{content:"";position:absolute;inset:-60%;pointer-events:none;opacity:.3;
+    background:conic-gradient(from 0deg, rgba(34,197,94,0.3), rgba(34,211,238,0.18), transparent 35%, rgba(34,197,94,0.3));
+    animation:spinGlow 7s linear infinite;}
+  @keyframes spinGlow{to{transform:rotate(360deg);}}
+  .goal-panel-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .goal-panel-head label{margin:0;}
+  .goal-autotag{position:relative;z-index:1;font-size:10px;font-weight:600;padding:4px 9px;border-radius:999px;
+    background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.35);color:var(--cyan);
+    display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;transition:background .2s,border-color .2s,color .2s;}
+  .goal-autotag.pinned{background:rgba(234,179,8,0.12);border-color:rgba(234,179,8,0.4);color:var(--hiz);}
+  .goal-autotag.none{background:rgba(148,163,184,0.08);border-color:rgba(148,163,184,0.25);color:var(--textDim);}
+  @keyframes tagPulse{0%{transform:scale(1);}30%{transform:scale(1.12);}100%{transform:scale(1);}}
+  .goal-autotag.flash{animation:tagPulse .45s ease;}
+  .goal-pills{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:4px;padding:4px;border-radius:10px;
+    background:rgba(2,18,16,0.4);border:1px solid rgba(148,233,214,0.1);}
+  .goal-indicator{position:absolute;top:4px;left:4px;height:calc(100% - 8px);border-radius:8px;z-index:0;
+    background:linear-gradient(135deg, rgba(34,197,94,0.9), rgba(34,211,238,0.7));
+    box-shadow:0 0 18px rgba(34,197,94,0.55);
+    transition:transform .38s cubic-bezier(.4,0,.2,1), width .38s cubic-bezier(.4,0,.2,1);}
+  .goal-pill{position:relative;z-index:1;padding:6px 11px;border-radius:8px;border:none;background:transparent;
+    color:var(--textDim);font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;cursor:pointer;
+    transition:color .25s;}
+  .goal-pill.active{color:#052E16;}
+  .goal-pill:hover:not(.active){color:var(--text);}
+  #goalSelect{width:100%;border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:'JetBrains Mono',monospace;
+    background:#0B1220;border:1px solid var(--cardBorder);color:var(--text);outline:none;margin-bottom:16px;}
+  #ttGenTitle{font-size:11px;font-weight:500;color:var(--textDim);margin-bottom:6px;}
+  #ttWrap{border-radius:8px;overflow:hidden;border:1px solid var(--cardBorder);margin-bottom:14px;}
+  #ttWrap table{width:100%;border-collapse:collapse;font-size:12px;font-family:'JetBrains Mono',monospace;}
+  #ttWrap th{text-align:left;padding:6px 10px;font-weight:500;color:var(--textDim);background:#0B1220;}
+  #ttWrap td{padding:6px 10px;border-top:1px solid var(--cardBorder);}
+  .unavailable-box{font-size:12px;padding:10px 12px;border-radius:8px;background:rgba(234,179,8,0.08);
+    color:var(--hiz);border:1px solid rgba(234,179,8,0.3);}
+  .result-box{border-radius:8px;padding:14px;text-align:center;}
+  .result-box.pass{background:rgba(34,197,94,0.12);border:1px solid var(--emerald);}
+  .result-box.fail{background:rgba(239,68,68,0.1);border:1px solid var(--danger);}
+  .result-box.discover{background:rgba(34,211,238,0.10);border:1px solid var(--cyan);}
+  .result-title{font-size:12.5px;font-weight:600;margin-top:6px;}
+  .result-sub{font-size:11px;margin-top:4px;}
+  #inspector{margin-top:16px;border-radius:12px;padding:14px;background:var(--card);border:1px solid var(--cardBorder);}
+  #inspector .insp-title{font-size:11px;font-weight:600;text-transform:uppercase;color:var(--textDim);margin-bottom:6px;}
+  #inspector .insp-name{font-size:13px;font-weight:500;margin-bottom:4px;}
+  #inspector .insp-id{font-size:11px;color:var(--textDim);font-family:'JetBrains Mono',monospace;margin-bottom:10px;}
+  #deleteBtn{width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px;border-radius:8px;
+    font-size:12px;background:rgba(239,68,68,0.1);border:1px solid var(--danger);color:var(--danger);}
+  #helpText{margin-top:16px;font-size:11px;line-height:1.5;color:var(--textDim);}
+
+  /* FULLSCREEN MODE */
+  #app.fullscreen #header{display:none;}
+  #app.fullscreen #toolbox{margin-left:-236px;opacity:0;pointer-events:none;}
+  #app.fullscreen #rightPanel{margin-right:-320px;opacity:0;pointer-events:none;}
+  #app.fullscreen #truthStrip{margin-bottom:-56px;opacity:0;pointer-events:none;}
+  #app.fullscreen #exitFsBtn{display:flex;}
+  #app.fullscreen #fullscreenBtn{display:none;}
+  #app.fullscreen #fsTestBtn{display:flex !important;}
+  #app.fullscreen #fsIOPanel{display:flex;}
+  #app.fullscreen #fsGatesPanel{display:flex;}
+
+  /* FULLSCREEN GLASS PALETTE */
+  #fsIOPanel{display:none;position:absolute;z-index:25;left:14px;top:64px;bottom:14px;
+    flex-direction:column;align-items:center;gap:10px;padding:12px 8px;border-radius:16px;
+    background:rgba(15,23,42,0.38);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border:1px solid rgba(148,233,214,0.22);box-shadow:0 8px 32px rgba(0,0,0,0.35);overflow-y:auto;}
+  #fsGatesPanel{display:none;position:absolute;z-index:25;top:14px;left:50%;transform:translateX(-50%);
+    flex-direction:row;align-items:center;gap:10px;padding:8px 12px;border-radius:16px;
+    background:rgba(15,23,42,0.38);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border:1px solid rgba(148,233,214,0.22);box-shadow:0 8px 32px rgba(0,0,0,0.35);}
+  .fs-chip{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,0.04);
+    border:1px solid rgba(148,233,214,0.18);color:var(--text);cursor:pointer;flex-shrink:0;
+    transition:border-color .15s, background .15s, transform .08s;}
+  .fs-chip:hover{border-color:var(--cyan);background:rgba(34,211,238,0.08);}
+  .fs-chip:active{transform:scale(0.93);}
+  .fs-chip .fs-sym{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;letter-spacing:.02em;color:var(--cyan);}
+  .fs-chip .fs-glyph{width:26px;height:17px;display:flex;align-items:center;justify-content:center;}
+  .fs-chip .fs-glyph svg{width:100%;height:100%;}
+  #fsGatesPanel .fs-div, #fsIOPanel .fs-div{background:rgba(148,233,214,0.22);flex-shrink:0;}
+  #fsGatesPanel .fs-div{width:1px;height:32px;}
+  #fsIOPanel .fs-div{height:1px;width:32px;}
+  #fsTestBtn{display:none;position:absolute;z-index:30;top:12px;right:12px;align-items:center;gap:8px;
+    padding:9px 18px;border-radius:8px;font-weight:600;font-size:13px;border:none;background:var(--emerald);
+    color:#052E16;box-shadow:0 0 20px var(--emeraldGlow);}
+  #fsTestBtn.editing{background:var(--cyan);box-shadow:0 0 20px rgba(34,211,238,.55);}
+
+  /* HISTORY (UNDO/REDO) CONTROLS */
+  .iconbtn:disabled{opacity:.35;cursor:not-allowed;}
+  .iconbtn:disabled:hover{border-color:var(--cardBorder);color:var(--textDim);}
+
+  /* CONTEXT MENU */
+  #nodeContextMenu, #voidContextMenu{position:fixed;z-index:200;min-width:168px;padding:6px;border-radius:10px;
+    background:rgba(15,23,42,0.97);border:1px solid var(--cardBorder);
+    box-shadow:0 10px 34px rgba(0,0,0,.5);display:none;animation:popIn .12s ease-out;}
+  #nodeContextMenu .cm-head, #voidContextMenu .cm-head{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--textDim);padding:6px 10px 4px;}
+  #nodeContextMenu .cm-item, #voidContextMenu .cm-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;
+    font-size:12.5px;color:var(--text);cursor:pointer;background:none;border:none;width:100%;text-align:left;}
+  #nodeContextMenu .cm-item:hover, #voidContextMenu .cm-item:hover{background:rgba(255,255,255,0.06);}
+  #nodeContextMenu .cm-item.danger, #voidContextMenu .cm-item.danger{color:var(--danger);}
+  #nodeContextMenu .cm-item.danger:hover, #voidContextMenu .cm-item.danger:hover{background:rgba(239,68,68,0.12);}
+  #nodeContextMenu .cm-sep, #voidContextMenu .cm-sep{height:1px;background:var(--cardBorder);margin:4px 2px;}
+
+  /* ANNOTATION LAYER */
+  #annotateCanvas{position:absolute;inset:0;z-index:15;pointer-events:none;}
+  #annotateCanvas.active{pointer-events:auto;cursor:crosshair;}
+  #annotateCanvas.erasing{cursor:cell;}
+  #annotateBar{position:absolute;z-index:26;bottom:58px;left:50%;transform:translateX(-50%);
+    display:none;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;
+    background:rgba(15,23,42,0.7);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    border:1px solid rgba(148,233,214,0.22);box-shadow:0 8px 28px rgba(0,0,0,.4);}
+  #annotateBar.visible{display:flex;}
+  .annotate-toggle{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;
+    background:rgba(255,255,255,0.05);border:1px solid var(--cardBorder);color:var(--textDim);transition:all .15s;}
+  .annotate-toggle:hover{border-color:var(--cardBorderHover);color:var(--text);}
+  .annotate-toggle.on{background:var(--cyan);color:#052E16;border-color:var(--cyan);
+    box-shadow:0 0 16px rgba(34,211,238,.65);}
+  .annotate-swatches{display:flex;align-items:center;gap:6px;padding:0 2px;}
+  .annotate-swatch{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,0.25);
+    cursor:pointer;transition:transform .12s, border-color .12s;flex-shrink:0;}
+  .annotate-swatch:hover{transform:scale(1.15);}
+  .annotate-swatch.active{border-color:#fff;transform:scale(1.2);box-shadow:0 0 10px currentColor;}
+  .annotate-divider{width:1px;height:22px;background:rgba(148,233,214,0.22);flex-shrink:0;}
+
+  /* EXPRESSION BADGES (test-mode boolean algebra labels) */
+  .expr-badge{position:absolute;white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.01em;
+    color:#94A3B8;background:rgba(15,23,42,0.88);border:1px solid var(--cardBorder);border-radius:6px;
+    padding:3px 7px;pointer-events:none;z-index:6;animation:popIn .15s ease-out;}
+  .expr-badge.on{color:var(--emerald);border-color:rgba(34,197,94,0.5);box-shadow:0 0 10px rgba(34,197,94,0.25);}
+  .expr-badge .ov{text-decoration:overline;text-decoration-thickness:1.4px;padding:0 2px;}
+
+  /* FACT POPUP */
+  #factPopup{position:fixed;z-index:100;max-width:280px;padding:12px 14px;border-radius:12px;
+    background:rgba(15,23,42,0.97);border:1px solid var(--cyan);color:var(--text);font-size:12.5px;
+    line-height:1.45;box-shadow:0 8px 30px rgba(0,0,0,.5), 0 0 20px rgba(34,211,238,.25);
+    animation:popIn .18s ease-out;display:none;}
+  #factPopup .fp-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan);margin-bottom:5px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div class="brand">
+      <div class="icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>
+      </div>
+      <div>
+        <div class="title">LogicForge <span>— Gate Simulator</span></div>
+        <div class="sub mono">Universal Gate Conversion Lab</div>
+      </div>
+    </div>
+    <div id="headerRight">
+      <div class="signature-name">Hrishikesh</div>
+      <button class="iconbtn" id="clearBtn" title="Clear Canvas">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>
+      </button>
+      <button class="iconbtn" id="exportBtn" title="Export Circuit (JSON)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3M7 10l5 5 5-5M4 21h16"/></svg>
+      </button>
+      <button id="testBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span id="testBtnLabel">TEST CIRCUIT</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div id="body">
+
+    <!-- TOOLBOX -->
+    <div id="toolbox"></div>
+
+    <!-- CANVAS -->
+    <div id="canvasArea">
+      <button class="iconbtn" id="fullscreenBtn" title="Fullscreen circuit-only mode">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      </button>
+      <button class="iconbtn" id="exitFsBtn" title="Exit fullscreen">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v4a2 2 0 0 1-2 2H3m18-6h-4a2 2 0 0 0-2 2v4m-6 6H3v4m18-6h-4a2 2 0 0 0-2 2v4m-6 0v-4a2 2 0 0 0-2-2H3"/></svg>
+      </button>
+      <button id="fsTestBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span id="fsTestBtnLabel">TEST CIRCUIT</span>
+      </button>
+      <div id="zoomCtrls">
+        <button class="iconbtn" id="undoBtn" title="Undo (Ctrl+Z)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5A5.5 5.5 0 0 1 20 14.5v0A5.5 5.5 0 0 1 14.5 20H11"/></svg>
+        </button>
+        <button class="iconbtn" id="redoBtn" title="Redo (Ctrl+Y)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
+        </button>
+        <div style="width:1px;height:20px;background:var(--cardBorder);flex-shrink:0;margin:0 2px;"></div>
+        <button class="iconbtn" id="zoomOutBtn" title="Zoom out">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3M8 11h6"/></svg>
+        </button>
+        <button class="iconbtn" id="zoomInBtn" title="Zoom in">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg>
+        </button>
+      </div>
+
+      <div id="fsIOPanel"></div>
+      <div id="fsGatesPanel"></div>
+
+      <div id="canvasWrap">
+        <div id="world">
+          <svg id="wireSvg">
+            <defs>
+              <filter id="wireGlow" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="3" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <g id="wireLayer"></g>
+            <g id="tempWireLayer"></g>
+          </svg>
+          <div id="nodeLayer"></div>
+        </div>
+        <canvas id="annotateCanvas"></canvas>
+      </div>
+      <div id="modeHint">Drag empty space to pan · Scroll to zoom · Drag a gate here to place it</div>
+      <div id="annotateBar">
+        <button class="annotate-toggle" id="annotatePenBtn" title="Toggle annotate pen">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+        </button>
+        <button class="annotate-toggle" id="annotateEraserBtn" title="Eraser">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 21-4.3-4.3a2 2 0 0 1 0-2.8l9.9-9.9a2 2 0 0 1 2.8 0l5.6 5.6a2 2 0 0 1 0 2.8L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+        </button>
+        <div class="annotate-divider"></div>
+        <div class="annotate-swatches" id="annotateSwatches"></div>
+        <div class="annotate-divider"></div>
+        <button class="iconbtn" id="annotateClearBtn" title="Clear annotations">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div id="rightPanel">
+      <button id="verifyToggle">
+        <span class="vt-label">Verification Suite</span>
+        <svg id="verifyChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8CA0AF" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>
+      </button>
+      <div id="verifyBox">
+        <div class="goal-panel">
+          <div class="goal-panel-head">
+            <label style="margin:0;">Target Gate</label>
+            <span id="goalAutoTag" class="goal-autotag"></span>
+          </div>
+          <div id="goalPills" class="goal-pills"></div>
+        </div>
+        <div id="ttGenTitle">Truth Table Generator</div>
+        <div id="ttContainer"></div>
+        <div id="resultContainer"></div>
+      </div>
+      <div id="inspector" style="display:none;"></div>
+      <div id="helpText">Drag a gate from the toolbox onto the canvas, or click it to drop it in. Drag from an output pin (cyan circle) to an input pin (cyan square) to wire components. Click a node to select it, press Delete to remove. Drag empty canvas to pan, scroll to zoom. Hit <b>TEST CIRCUIT</b> to lock the layout and tap any part for a quick explainer.</div>
+    </div>
+
+  </div>
+</div>
+
+<div id="factPopup"><div class="fp-tag">Did you know?</div><div id="factText"></div></div>
+
+<div id="nodeContextMenu">
+  <div class="cm-head" id="cmHead"></div>
+  <button class="cm-item" id="cmInfo">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    Info
+  </button>
+  <div class="cm-sep"></div>
+  <button class="cm-item danger" id="cmDelete">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>
+    Delete
+  </button>
+</div>
+
+<div id="voidContextMenu">
+  <div class="cm-head">Canvas</div>
+  <button class="cm-item danger" id="cmDeleteAll">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>
+    Delete All Components
+  </button>
+</div>
+
+<script>
+/* ============================== THEME / CONSTANTS ============================== */
+const C = {
+  emerald:"#22C55E", emeraldGlow:"rgba(34,197,94,0.65)", cyan:"#22D3EE",
+  low:"#334155", hiz:"#EAB308", danger:"#EF4444", card:"#0F172A"
+};
+const GATE_INPUT_COUNT = { INPUT:0, OUTPUT:1, NOT:1, BUFFER:1, AND:2, OR:2, NAND:2, NOR:2, XOR:2, XNOR:2 };
+const GATE_SYMBOL = { AND:"AND", OR:"OR", NOT:"NOT", NAND:"NAND", NOR:"NOR", XOR:"XOR", XNOR:"XNOR", BUFFER:"BUF", INPUT:"IN", OUTPUT:"LED" };
+const NODE_W = 132, NODE_H = 78, IO_W = 118, IO_H = 56;
+
+function computeGate(type, vals){
+  if (vals.some(v => v===null||v===undefined)) return null;
+  switch(type){
+    case "AND": return vals.every(v=>v===1)?1:0;
+    case "OR": return vals.some(v=>v===1)?1:0;
+    case "NAND": return vals.every(v=>v===1)?0:1;
+    case "NOR": return vals.some(v=>v===1)?0:1;
+    case "XOR": return vals[0]!==vals[1]?1:0;
+    case "XNOR": return vals[0]===vals[1]?1:0;
+    case "NOT": return vals[0]===1?0:1;
+    case "BUFFER": return vals[0];
+    case "OUTPUT": return vals[0];
+    default: return null;
+  }
+}
+function nodeSize(type){ if(type==="INPUT"||type==="OUTPUT") return {w:IO_W,h:IO_H}; return {w:NODE_W,h:NODE_H}; }
+function pinPositions(node){
+  const {w,h}=nodeSize(node.type); const n=GATE_INPUT_COUNT[node.type];
+  const inputs=[]; if(n===1) inputs.push({x:0,y:h/2}); if(n===2) inputs.push({x:0,y:h*0.28},{x:0,y:h*0.72});
+  const outputs = node.type==="OUTPUT" ? [] : [{x:w,y:h/2}];
+  return {inputs, outputs};
+}
+function gateGlyphSVG(type, active){
+  const stroke = active ? C.emerald : "#64748B"; const sw=2;
+  const a = `fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"`;
+  if(type==="AND"||type==="NAND")
+    return `<svg viewBox="0 0 60 40" width="52" height="34"><path d="M8 6 H30 A14 14 0 0 1 30 34 H8 Z" ${a}/>${type==="NAND"?`<circle cx="47" cy="20" r="3" ${a}/>`:""}</svg>`;
+  if(type==="OR"||type==="NOR"||type==="XOR"||type==="XNOR")
+    return `<svg viewBox="0 0 60 40" width="52" height="34">${(type==="XOR"||type==="XNOR")?`<path d="M4 6 Q12 20 4 34" ${a}/>`:""}<path d="M8 6 Q24 6 40 20 Q24 34 8 34 Q16 20 8 6 Z" ${a}/>${(type==="NOR"||type==="XNOR")?`<circle cx="47" cy="20" r="3" ${a}/>`:""}</svg>`;
+  if(type==="NOT"||type==="BUFFER")
+    return `<svg viewBox="0 0 60 40" width="52" height="34"><path d="M10 6 L10 34 L40 20 Z" ${a}/>${type==="NOT"?`<circle cx="46" cy="20" r="3" ${a}/>`:""}</svg>`;
+  return "";
+}
+
+/* ============================== NODE FACTORY ============================== */
+let uidCounter = 1;
+const uid = (p) => `${p}_${uidCounter++}`;
+function makeNode(type,x,y,overrides={}){
+  return { id: uid(type.toLowerCase()), type, x, y, value: type==="INPUT"?1:undefined, label: overrides.label ?? type, ...overrides };
+}
+
+/* ============================== PRESET CIRCUITS ============================== */
+function buildAndFromNor(){
+  uidCounter=1;
+  const inA=makeNode("INPUT",40,90,{label:"A",value:1}), inB=makeNode("INPUT",40,260,{label:"B",value:1});
+  const g1=makeNode("NOR",300,60,{label:"G1"}), g2=makeNode("NOR",300,230,{label:"G2"}), g3=makeNode("NOR",560,145,{label:"G3"});
+  const led=makeNode("OUTPUT",800,160,{label:"Y"});
+  const nodes=[inA,inB,g1,g2,g3,led];
+  const edges=[
+    {id:uid("e"),from:inA.id,to:g1.id,toPort:0},{id:uid("e"),from:inA.id,to:g1.id,toPort:1},
+    {id:uid("e"),from:inB.id,to:g2.id,toPort:0},{id:uid("e"),from:inB.id,to:g2.id,toPort:1},
+    {id:uid("e"),from:g1.id,to:g3.id,toPort:0},{id:uid("e"),from:g2.id,to:g3.id,toPort:1},
+    {id:uid("e"),from:g3.id,to:led.id,toPort:0}
+  ];
+  return {nodes,edges,goal:"AND"};
+}
+function buildOrFromNand(){
+  uidCounter=1;
+  const inA=makeNode("INPUT",40,90,{label:"A",value:1}), inB=makeNode("INPUT",40,260,{label:"B",value:0});
+  const g1=makeNode("NAND",300,60,{label:"G1"}), g2=makeNode("NAND",300,230,{label:"G2"}), g3=makeNode("NAND",560,145,{label:"G3"});
+  const led=makeNode("OUTPUT",800,160,{label:"Y"});
+  const nodes=[inA,inB,g1,g2,g3,led];
+  const edges=[
+    {id:uid("e"),from:inA.id,to:g1.id,toPort:0},{id:uid("e"),from:inA.id,to:g1.id,toPort:1},
+    {id:uid("e"),from:inB.id,to:g2.id,toPort:0},{id:uid("e"),from:inB.id,to:g2.id,toPort:1},
+    {id:uid("e"),from:g1.id,to:g3.id,toPort:0},{id:uid("e"),from:g2.id,to:g3.id,toPort:1},
+    {id:uid("e"),from:g3.id,to:led.id,toPort:0}
+  ];
+  return {nodes,edges,goal:"OR"};
+}
+function buildNotFromNor(){
+  uidCounter=1;
+  const inA=makeNode("INPUT",40,150,{label:"A",value:1});
+  const g1=makeNode("NOR",320,130,{label:"G1"});
+  const led=makeNode("OUTPUT",600,150,{label:"Y"});
+  const nodes=[inA,g1,led];
+  const edges=[
+    {id:uid("e"),from:inA.id,to:g1.id,toPort:0},{id:uid("e"),from:inA.id,to:g1.id,toPort:1},
+    {id:uid("e"),from:g1.id,to:led.id,toPort:0}
+  ];
+  return {nodes,edges,goal:"NOT"};
+}
+const PRESETS = [
+  {key:"and-nor", name:"AND (from NOR)", build:buildAndFromNor},
+  {key:"or-nand", name:"OR (from NAND)", build:buildOrFromNand},
+  {key:"not-nor", name:"NOT (from NOR)", build:buildNotFromNor},
+];
+
+const TARGETS = {
+  AND:{arity:2, fn:(a,b)=>(a&&b?1:0)}, OR:{arity:2, fn:(a,b)=>(a||b?1:0)},
+  NAND:{arity:2, fn:(a,b)=>(a&&b?0:1)}, NOR:{arity:2, fn:(a,b)=>(a||b?0:1)},
+  XOR:{arity:2, fn:(a,b)=>(a!==b?1:0)}, XNOR:{arity:2, fn:(a,b)=>(a===b?1:0)},
+  NOT:{arity:1, fn:(a)=>(a?0:1)}
+};
+
+/* ============================== EVALUATION ============================== */
+function evaluateAll(nodes, edges, overrideValues={}){
+  const nodesById = Object.fromEntries(nodes.map(n=>[n.id,n]));
+  const inputEdgesByNode = {};
+  edges.forEach(e=>{ (inputEdgesByNode[e.to] ||= []).push(e); });
+  const memo = {};
+  function evalNode(id, stack){
+    if(id in memo) return memo[id];
+    if(stack.has(id)) return null;
+    stack.add(id);
+    const node = nodesById[id];
+    let val = null;
+    if(!node) val=null;
+    else if(node.type==="INPUT"){ val = overrideValues.hasOwnProperty(id) ? overrideValues[id] : node.value; }
+    else{
+      const n = GATE_INPUT_COUNT[node.type];
+      const portEdges = inputEdgesByNode[id] || [];
+      const vals=[];
+      for(let p=0;p<n;p++){ const e=portEdges.find(e=>e.toPort===p); vals.push(e?evalNode(e.from,stack):null); }
+      val = computeGate(node.type, vals);
+    }
+    stack.delete(id); memo[id]=val; return val;
+  }
+  nodes.forEach(n=>evalNode(n.id, new Set()));
+  return memo;
+}
+
+/* ============================== BOOLEAN EXPRESSION LABELS (test-mode) ============================== */
+function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function exprWrap(child, parentPrec){ return child.prec < parentPrec ? `(${child.html})` : child.html; }
+function overlineExpr(html){ return `<span class="ov">${html}</span>`; }
+function computeExpressions(){
+  const nodesById = Object.fromEntries(nodes.map(n=>[n.id,n]));
+  const inputEdgesByNode = {};
+  edges.forEach(e=>{ (inputEdgesByNode[e.to] ||= []).push(e); });
+  const memo = {};
+  function exprOf(id, stack){
+    if(id in memo) return memo[id];
+    if(stack.has(id)) return {html:"…", prec:3};
+    stack.add(id);
+    const node = nodesById[id];
+    let result;
+    if(!node) result = {html:"?", prec:3};
+    else if(node.type==="INPUT"){
+      if(node.locked) result = {html:String(node.value), prec:3};
+      else if(node.isClock) result = {html:"CLK", prec:3};
+      else result = {html:escapeHtml(node.label), prec:3};
+    } else {
+      const n = GATE_INPUT_COUNT[node.type];
+      const portEdges = inputEdgesByNode[id] || [];
+      const kids = [];
+      for(let p=0;p<n;p++){
+        const e = portEdges.find(ed=>ed.toPort===p);
+        kids.push(e ? exprOf(e.from, stack) : {html:"?", prec:3});
+      }
+      switch(node.type){
+        case "AND":   result = { html: kids.map(k=>exprWrap(k,2)).join("&middot;"), prec:2 }; break;
+        case "OR":    result = { html: kids.map(k=>exprWrap(k,0)).join("+"), prec:0 }; break;
+        case "XOR":   result = { html: kids.map(k=>exprWrap(k,1)).join("&oplus;"), prec:1 }; break;
+        case "NAND":  result = { html: overlineExpr(kids.map(k=>exprWrap(k,2)).join("&middot;")), prec:3 }; break;
+        case "NOR":   result = { html: overlineExpr(kids.map(k=>exprWrap(k,0)).join("+")), prec:3 }; break;
+        case "XNOR":  result = { html: overlineExpr(kids.map(k=>exprWrap(k,1)).join("&oplus;")), prec:3 }; break;
+        case "NOT":   result = { html: overlineExpr(kids[0].html), prec:3 }; break;
+        case "BUFFER":result = kids[0]; break;
+        case "OUTPUT":result = kids[0]; break;
+        default: result = {html:"?", prec:3};
+      }
+    }
+    stack.delete(id); memo[id]=result; return result;
+  }
+  nodes.forEach(n=>exprOf(n.id, new Set()));
+  return memo;
+}
+
+/* ============================== FUN FACTS FOR TEST MODE ============================== */
+const FACTS = {
+  AND:[ "AND is a strict bouncer — every single input must flash VIP (1) or nobody gets in.",
+        "Fun fact: your CPU has BILLIONS of AND-like gates, all silently vetoing anything less than total agreement." ],
+  OR:[ "OR is the friend group's yes-man — one enthusiastic 1 and the whole gate lights up.",
+       "OR gates are basically democracy's most relaxed voter: one 'yes' anywhere wins the whole election." ],
+  NOT:[ "NOT is the world's tiniest rebel — whatever you say, it says the opposite, forever.",
+        "A NOT gate never agrees with you. Not once. It's the internet's most consistent troll." ],
+  NAND:[ "NAND is secretly a superhero: with ONLY NAND gates you can build every other logic gate that exists.",
+         "Fabs love NAND — it's usually the cheapest, fastest gate to manufacture in silicon." ],
+  NOR:[ "NOR is NAND's equally overpowered twin — universal too, just allergic to any HIGH input.",
+        "Early Apollo Guidance Computers were built almost entirely from NOR gates. NASA trusted a grumpy gate to land on the Moon." ],
+  XOR:[ "XOR only fires when inputs disagree — it's the 'it's complicated' relationship status of logic gates.",
+        "XOR is the secret engine behind binary addition — every adder chip on Earth leans on it." ],
+  XNOR:[ "XNOR is XOR's peacekeeper twin — it lights up exactly when both sides finally agree.",
+         "XNOR gates are the backbone of equality checkers — how your computer tells if two bytes match." ],
+  INPUT:[ "This switch is the only part of the circuit with actual free will — you.",
+          "Every digital signal on Earth traces back to a switch just like this one flipping between 0 and 1." ],
+  OUTPUT:[ "This LED is the circuit's verdict — glowing green means the logic agrees with you.",
+           "Real LEDs emit light because electrons literally fall down an energy hill and release a photon on landing." ],
+  WIRE:[ "That dashed green flow isn't decorative — it only animates when a real HIGH (1) signal is present.",
+         "In real silicon, signals don't 'flow' like water — they're voltage states that propagate in billionths of a second." ],
+};
+function randomFact(type){ const arr = FACTS[type] || ["This part just quietly does its job — no drama, all logic."]; return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* ============================== COMPONENT INFO (right-click "Info") ============================== */
+const INFO_DESC = {
+  AND:"Outputs 1 only when every input is 1. Two-input truth table: 00→0, 01→0, 10→0, 11→1.",
+  OR:"Outputs 1 when at least one input is 1. Only 00→0; every other combination is 1.",
+  NOT:"Single-input inverter. Flips 0→1 and 1→0.",
+  NAND:"AND followed by an inverter. Outputs 0 only when every input is 1 — otherwise 1. Universal gate: any circuit can be built from NAND alone.",
+  NOR:"OR followed by an inverter. Outputs 1 only when every input is 0. Also universal, like NAND.",
+  XOR:"Outputs 1 when the inputs differ (exactly one is 1). Core building block of binary adders.",
+  XNOR:"Outputs 1 when the inputs match (both 0 or both 1). Commonly used as an equality checker.",
+  BUFFER:"Passes its input straight through unchanged. Used to restore signal strength on long wires.",
+  INPUT:"A toggle switch that supplies a fixed 0 or 1 into the circuit. Click it (outside test mode) to flip its value.",
+  OUTPUT:"An LED probe that displays whatever value reaches it: lit = 1, dark = 0, amber = floating/undetermined (Hi-Z).",
+};
+function componentInfoText(node){
+  if(node.isClock) return "Clock Pulse — an input that automatically toggles between 0 and 1 every ~0.9s, useful for testing timing-sensitive circuits.";
+  if(node.locked) return `Constant ${node.value} — a fixed source that always outputs ${node.value} and can't be toggled.`;
+  return INFO_DESC[node.type] || "No additional information available for this component.";
+}
+
+/* ============================== APP STATE ============================== */
+let scenario = buildAndFromNor();
+let nodes = scenario.nodes;
+let edges = scenario.edges;
+let goal = scenario.goal;
+let zoom = 1;
+let panX = 40, panY = 20;
+let connecting = null; // {fromId}
+let cursorWorld = {x:0,y:0};
+let selectedId = null;
+let verifyOpen = true;
+let testMode = false;
+let tick = 0;
+
+/* ============================== UNDO / REDO HISTORY ============================== */
+let undoStack = [];
+let redoStack = [];
+const HISTORY_LIMIT = 60;
+let restoringHistory = false;
+function snapshotState(){
+  return JSON.stringify({ nodes, edges, goal, uidCounter });
+}
+function pushHistory(){
+  if(restoringHistory) return;
+  undoStack.push(snapshotState());
+  if(undoStack.length > HISTORY_LIMIT) undoStack.shift();
+  redoStack = [];
+  updateHistoryButtons();
+}
+function applySnapshot(str){
+  const s = JSON.parse(str);
+  nodes = s.nodes; edges = s.edges; goal = s.goal; uidCounter = s.uidCounter;
+  goalManuallySet = true; // preserve exactly what the snapshot shows, don't re-auto-detect over it
+  selectedId = null;
+  render();
+}
+function undo(){
+  if(!undoStack.length) return;
+  restoringHistory = true;
+  redoStack.push(snapshotState());
+  const prev = undoStack.pop();
+  applySnapshot(prev);
+  restoringHistory = false;
+  updateHistoryButtons();
+}
+function redo(){
+  if(!redoStack.length) return;
+  restoringHistory = true;
+  undoStack.push(snapshotState());
+  const next = redoStack.pop();
+  applySnapshot(next);
+  restoringHistory = false;
+  updateHistoryButtons();
+}
+function updateHistoryButtons(){
+  const u = el("undoBtn"), r = el("redoBtn");
+  if(u) u.disabled = undoStack.length===0;
+  if(r) r.disabled = redoStack.length===0;
+}
+
+const el = (id) => document.getElementById(id);
+const canvasWrap = el("canvasWrap");
+const world = el("world");
+const nodeLayer = el("nodeLayer");
+const wireLayer = el("wireLayer");
+const tempWireLayer = el("tempWireLayer");
+
+/* ============================== TOOLBOX BUILD ============================== */
+const TOOLBOX_SECTIONS = [
+  { title:"I/O", items:[
+    {type:"INPUT", label:"Toggle Switch", sub:"0 / 1 source", icon:"toggle"},
+    {type:"INPUT_CLOCK", label:"Clock Pulse", sub:"auto-toggling", icon:"clock"},
+    {type:"CONST1", label:"Constant 1", sub:"fixed HIGH", icon:"spark"},
+    {type:"CONST0", label:"Constant 0", sub:"fixed LOW", icon:"spark"},
+    {type:"OUTPUT", label:"LED (Output)", sub:"signal probe", icon:"bulb"},
+  ]},
+  { title:"Basic Gates", items:[ {type:"AND",label:"AND"}, {type:"OR",label:"OR"}, {type:"NOT",label:"NOT"} ]},
+  { title:"Universal Gates", items:[ {type:"NAND",label:"NAND"}, {type:"NOR",label:"NOR"} ]},
+  { title:"Exclusive Gates", items:[ {type:"XOR",label:"XOR"}, {type:"XNOR",label:"XNOR"} ]},
+];
+const ICONS = {
+  toggle:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2"><rect x="1" y="6" width="22" height="12" rx="6"/><circle cx="16" cy="12" r="4"/></svg>',
+  clock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  spark:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2"><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></svg>',
+  bulb:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2"><path d="M9 18h6M10 22h4M15.09 14A5 5 0 1 0 9 14 6 6 0 0 1 12 21a6 6 0 0 1 3-7Z"/></svg>',
+};
+function buildToolbox(){
+  const box = el("toolbox"); box.innerHTML="";
+  TOOLBOX_SECTIONS.forEach(section=>{
+    const wrap = document.createElement("div"); wrap.style.marginBottom="16px";
+    const t = document.createElement("div"); t.className="section-title"; t.textContent=section.title; wrap.appendChild(t);
+    section.items.forEach(item=>{
+      const row = document.createElement("div"); row.className="tool-item"; row.draggable=true;
+      row.addEventListener("dragstart", e=>e.dataTransfer.setData("text/gate-type", item.type));
+      row.addEventListener("click", ()=>addNode(item.type));
+      const glyph = document.createElement("div"); glyph.className="glyph-wrap";
+      glyph.innerHTML = item.icon ? ICONS[item.icon] : gateGlyphSVG(item.type,false);
+      row.appendChild(glyph);
+      const textWrap = document.createElement("div"); textWrap.style.lineHeight="1.2";
+      textWrap.innerHTML = `<div class="label">${item.label}</div>${item.sub?`<div class="sub">${item.sub}</div>`:""}`;
+      row.appendChild(textWrap);
+      const plus = document.createElement("div"); plus.className="plus";
+      plus.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>';
+      row.appendChild(plus);
+      wrap.appendChild(row);
+    });
+    box.appendChild(wrap);
+  });
+  const presetWrap = document.createElement("div");
+  const pt = document.createElement("div"); pt.className="section-title"; pt.textContent="Challenge Presets"; presetWrap.appendChild(pt);
+  PRESETS.forEach(p=>{
+    const btn = document.createElement("button"); btn.className="preset-btn"; btn.textContent=p.name;
+    btn.addEventListener("click", ()=>loadPreset(p));
+    presetWrap.appendChild(btn);
+  });
+  box.appendChild(presetWrap);
+}
+buildToolbox();
+
+/* ============================== FULLSCREEN GLASS PALETTE ============================== */
+const FS_IO_SYMBOL = { INPUT:"SW", INPUT_CLOCK:"CLK", CONST1:"1", CONST0:"0", OUTPUT:"LED" };
+function makeFsChip(type, symbolText, glyphHtml, title){
+  const chip = document.createElement("div");
+  chip.className = "fs-chip";
+  chip.title = title;
+  chip.innerHTML = `<div class="fs-glyph">${glyphHtml || ""}</div><div class="fs-sym">${symbolText}</div>`;
+  chip.addEventListener("click", ()=> addNode(type));
+  chip.draggable = true;
+  chip.addEventListener("dragstart", e=>e.dataTransfer.setData("text/gate-type", type));
+  return chip;
+}
+function buildFsPanels(){
+  const ioPanel = el("fsIOPanel"); ioPanel.innerHTML = "";
+  TOOLBOX_SECTIONS[0].items.forEach(item=>{
+    const glyph = item.icon ? ICONS[item.icon] : "";
+    ioPanel.appendChild(makeFsChip(item.type, FS_IO_SYMBOL[item.type] || item.type, glyph, item.label));
+  });
+
+  const gatesPanel = el("fsGatesPanel"); gatesPanel.innerHTML = "";
+  const gateGroups = TOOLBOX_SECTIONS.slice(1); // Basic, Universal, Exclusive
+  gateGroups.forEach((section, gi)=>{
+    if(gi>0){ const div = document.createElement("div"); div.className="fs-div"; gatesPanel.appendChild(div); }
+    section.items.forEach(item=>{
+      gatesPanel.appendChild(makeFsChip(item.type, item.type, gateGlyphSVG(item.type,false), item.label));
+    });
+  });
+}
+buildFsPanels();
+
+/* goal pill selector */
+let goalManuallySet = false;
+let lastTopologySignature = null;
+
+function buildGoalPills(){
+  const wrap = el("goalPills");
+  wrap.innerHTML = '<div id="goalIndicator" class="goal-indicator"></div>';
+  Object.keys(TARGETS).forEach(g=>{
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "goal-pill"; btn.dataset.goal = g; btn.textContent = g;
+    btn.addEventListener("click", ()=>{
+      goal = g; goalManuallySet = true;
+      render();
+    });
+    wrap.appendChild(btn);
+  });
+}
+buildGoalPills();
+
+function positionGoalIndicator(){
+  const wrap = el("goalPills");
+  const indicator = el("goalIndicator");
+  const activeBtn = wrap.querySelector(`.goal-pill[data-goal="${goal}"]`);
+  wrap.querySelectorAll(".goal-pill").forEach(b=> b.classList.toggle("active", b.dataset.goal===goal));
+  if(!activeBtn || !indicator) return;
+  indicator.style.width = activeBtn.offsetWidth + "px";
+  indicator.style.transform = `translateX(${activeBtn.offsetLeft - 4}px)`;
+}
+
+function updateAutoTag(detectedGoal, justChanged){
+  const tag = el("goalAutoTag");
+  tag.classList.remove("pinned","none");
+  if(goalManuallySet){
+    tag.classList.add("pinned");
+    tag.innerHTML = "📌 pinned — tap to auto-detect";
+    tag.onclick = ()=>{
+      goalManuallySet = false;
+      const t = computeTruth();
+      const dg = detectGateType(t);
+      if(dg) goal = dg;
+      render();
+    };
+  } else if(detectedGoal){
+    tag.innerHTML = "✨ auto-detected";
+    tag.onclick = null;
+  } else {
+    tag.classList.add("none");
+    tag.innerHTML = "no known gate matched yet";
+    tag.onclick = null;
+  }
+  if(justChanged){
+    tag.classList.remove("flash"); void tag.offsetWidth; tag.classList.add("flash");
+  }
+}
+
+/* ============================== COORD HELPERS ============================== */
+function toWorld(clientX, clientY){
+  const rect = canvasWrap.getBoundingClientRect();
+  return { x:(clientX-rect.left-panX)/zoom, y:(clientY-rect.top-panY)/zoom };
+}
+function applyTransform(){
+  world.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+  const gridSize = 24*zoom;
+  canvasWrap.style.backgroundPosition = `0 0, ${panX}px ${panY}px, ${panX}px ${panY}px`;
+  canvasWrap.style.backgroundSize = `auto, ${gridSize}px ${gridSize}px, ${gridSize}px ${gridSize}px`;
+}
+
+/* ============================== NODE OPS ============================== */
+function addNode(type, worldPos){
+  const idx = nodes.length;
+  const pos = worldPos || { x: 120 + (idx%5)*40, y: 40 + ((idx*70)%400) };
+  let realType = type;
+  const overrides = { label: GATE_SYMBOL[type] || type };
+  if(type==="INPUT_CLOCK"){ realType="INPUT"; overrides.isClock=true; overrides.value=1; overrides.label="CLK"; }
+  if(type==="CONST1"){ realType="INPUT"; overrides.locked=true; overrides.value=1; overrides.label="1"; }
+  if(type==="CONST0"){ realType="INPUT"; overrides.locked=true; overrides.value=0; overrides.label="0"; }
+  const node = makeNode(realType, pos.x, pos.y, overrides);
+  pushHistory();
+  nodes = [...nodes, node];
+  render();
+}
+function removeSelected(){
+  if(!selectedId) return;
+  removeNodeById(selectedId);
+}
+function removeNodeById(id){
+  pushHistory();
+  nodes = nodes.filter(n=>n.id!==id);
+  edges = edges.filter(e=>e.from!==id && e.to!==id);
+  if(selectedId===id) selectedId = null;
+  render();
+}
+function toggleInput(id){
+  nodes = nodes.map(n => (n.id===id && !n.locked && !n.isClock) ? {...n, value: n.value?0:1} : n);
+  render();
+}
+function loadPreset(preset){
+  pushHistory();
+  const built = preset.build();
+  nodes = built.nodes; edges = built.edges; goal = built.goal;
+  goalManuallySet = false; selectedId = null;
+  panX = 40; panY = 20; zoom = 1; applyTransform();
+  render();
+}
+function clearCanvas(){ pushHistory(); nodes=[]; edges=[]; selectedId=null; render(); }
+function exportCircuit(){
+  const data = JSON.stringify({nodes, edges, goal}, null, 2);
+  const blob = new Blob([data], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download="logicforge-circuit.json"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ============================== DRAG / PAN / WIRE (pointer events) ============================== */
+let dragging = null;      // {id, offX, offY}
+let panning = null;       // {startX, startY, startPanX, startPanY}
+
+canvasWrap.addEventListener("mousedown", (e)=>{
+  if(e.button!==0) return;
+  // clicking truly empty canvas background => pan (or deselect)
+  if(e.target === canvasWrap || e.target === world){
+    selectedId = null;
+    panning = { startX:e.clientX, startY:e.clientY, startPanX:panX, startPanY:panY };
+    canvasWrap.classList.add("panning");
+    renderInspector();
+  }
+});
+
+window.addEventListener("mousemove", (e)=>{
+  if(panning){
+    panX = panning.startPanX + (e.clientX - panning.startX);
+    panY = panning.startPanY + (e.clientY - panning.startY);
+    applyTransform();
+  }
+  if(dragging){
+    const {x,y} = toWorld(e.clientX, e.clientY);
+    const snapX = Math.round((x - dragging.offX)/10)*10;
+    const snapY = Math.round((y - dragging.offY)/10)*10;
+    const n = nodes.find(n=>n.id===dragging.id);
+    if(n && (n.x!==snapX || n.y!==snapY)){
+      if(!dragging.historyPushed){ pushHistory(); dragging.historyPushed = true; }
+      n.x = snapX; n.y = snapY; renderWires(); positionNode(n);
+    }
+  }
+  if(connecting){
+    cursorWorld = toWorld(e.clientX, e.clientY);
+    renderTempWire();
+  }
+});
+window.addEventListener("mouseup", ()=>{
+  dragging = null;
+  panning = null;
+  canvasWrap.classList.remove("panning");
+  if(connecting){ connecting = null; }
+  renderTempWire();
+});
+// Safety net: if the mouse leaves the window entirely mid-drag (e.g. released
+// outside the browser), don't leave a dangling preview wire behind.
+window.addEventListener("blur", ()=>{
+  dragging = null;
+  panning = null;
+  connecting = null;
+  canvasWrap.classList.remove("panning");
+  renderTempWire();
+});
+
+canvasWrap.addEventListener("wheel", (e)=>{
+  e.preventDefault();
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const worldX = (mx - panX)/zoom, worldY = (my - panY)/zoom;
+  const delta = e.deltaY > 0 ? -0.08 : 0.08;
+  const newZoom = Math.min(1.8, Math.max(0.4, +(zoom + delta).toFixed(2)));
+  panX = mx - worldX*newZoom;
+  panY = my - worldY*newZoom;
+  zoom = newZoom;
+  applyTransform();
+}, {passive:false});
+
+canvasWrap.addEventListener("dragover", e=>e.preventDefault());
+canvasWrap.addEventListener("drop", (e)=>{
+  e.preventDefault();
+  const type = e.dataTransfer.getData("text/gate-type");
+  if(!type) return;
+  const {x,y} = toWorld(e.clientX, e.clientY);
+  addNode(type, {x:x-60, y:y-30});
+});
+
+/* keyboard delete + undo/redo */
+window.addEventListener("keydown", (e)=>{
+  const active = document.activeElement;
+  if(active && (active.tagName==="INPUT"||active.tagName==="TEXTAREA")) return;
+  if((e.key==="Delete"||e.key==="Backspace") && selectedId){
+    removeSelected();
+    return;
+  }
+  const mod = e.ctrlKey || e.metaKey;
+  if(mod && !e.shiftKey && e.key.toLowerCase()==="z"){ e.preventDefault(); undo(); return; }
+  if(mod && ((e.shiftKey && e.key.toLowerCase()==="z") || e.key.toLowerCase()==="y")){ e.preventDefault(); redo(); return; }
+});
+el("undoBtn").addEventListener("click", undo);
+el("redoBtn").addEventListener("click", redo);
+updateHistoryButtons();
+
+/* ============================== CLOCK TICK ============================== */
+setInterval(()=>{
+  tick++;
+  let changed=false;
+  nodes.forEach(n=>{ if(n.isClock){ n.value = tick%2===0?1:0; changed=true; } });
+  if(changed) render();
+}, 900);
+
+/* ============================== FACT POPUP ============================== */
+const factPopup = el("factPopup");
+const factText = el("factText");
+let factTimeout = null;
+function showFact(type, clientX, clientY){
+  factText.textContent = randomFact(type);
+  factPopup.style.display = "block";
+  const pad = 14;
+  let left = clientX + 12, top = clientY + 12;
+  const maxW = 280;
+  if(left + maxW + pad > window.innerWidth) left = clientX - maxW - 12;
+  if(top + 100 + pad > window.innerHeight) top = clientY - 110;
+  factPopup.style.left = left+"px";
+  factPopup.style.top = top+"px";
+  clearTimeout(factTimeout);
+  factTimeout = setTimeout(()=>{ factPopup.style.display="none"; }, 4200);
+}
+document.addEventListener("mousedown", (e)=>{
+  if(!factPopup.contains(e.target)) factPopup.style.display="none";
+});
+
+/* ============================== RIGHT-CLICK CONTEXT MENU ============================== */
+const nodeContextMenu = el("nodeContextMenu");
+let contextMenuNodeId = null;
+function showContextMenu(node, clientX, clientY){
+  hideVoidContextMenu();
+  contextMenuNodeId = node.id;
+  el("cmHead").textContent = `${node.type} · ${node.label}`;
+  nodeContextMenu.style.display = "block";
+  const rect = nodeContextMenu.getBoundingClientRect();
+  let left = clientX, top = clientY;
+  if(left + rect.width + 10 > window.innerWidth) left = window.innerWidth - rect.width - 10;
+  if(top + rect.height + 10 > window.innerHeight) top = window.innerHeight - rect.height - 10;
+  nodeContextMenu.style.left = left+"px";
+  nodeContextMenu.style.top = top+"px";
+}
+function hideContextMenu(){
+  nodeContextMenu.style.display = "none";
+  contextMenuNodeId = null;
+}
+el("cmInfo").addEventListener("click", ()=>{
+  const node = nodes.find(n=>n.id===contextMenuNodeId);
+  const rect = nodeContextMenu.getBoundingClientRect();
+  hideContextMenu();
+  if(!node) return;
+  factText.textContent = componentInfoText(node);
+  factPopup.style.display = "block";
+  let left = rect.left, top = rect.top;
+  const maxW = 280;
+  if(left + maxW + 14 > window.innerWidth) left = window.innerWidth - maxW - 14;
+  if(top + 120 > window.innerHeight) top = window.innerHeight - 130;
+  factPopup.style.left = left+"px";
+  factPopup.style.top = top+"px";
+  clearTimeout(factTimeout);
+  factTimeout = setTimeout(()=>{ factPopup.style.display="none"; }, 6000);
+});
+el("cmDelete").addEventListener("click", ()=>{
+  const id = contextMenuNodeId;
+  hideContextMenu();
+  if(id) removeNodeById(id);
+});
+window.addEventListener("mousedown", (e)=>{
+  if(!nodeContextMenu.contains(e.target)) hideContextMenu();
+});
+window.addEventListener("scroll", hideContextMenu, true);
+canvasWrap.addEventListener("wheel", hideContextMenu);
+document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") hideContextMenu(); });
+
+/* right-click on empty canvas => "Delete All" menu */
+const voidContextMenu = el("voidContextMenu");
+function showVoidContextMenu(clientX, clientY){
+  hideContextMenu();
+  voidContextMenu.style.display = "block";
+  const rect = voidContextMenu.getBoundingClientRect();
+  let left = clientX, top = clientY;
+  if(left + rect.width + 10 > window.innerWidth) left = window.innerWidth - rect.width - 10;
+  if(top + rect.height + 10 > window.innerHeight) top = window.innerHeight - rect.height - 10;
+  voidContextMenu.style.left = left+"px";
+  voidContextMenu.style.top = top+"px";
+}
+function hideVoidContextMenu(){ voidContextMenu.style.display = "none"; }
+canvasWrap.addEventListener("contextmenu", (e)=>{
+  if(e.target === canvasWrap || e.target === world){
+    e.preventDefault();
+    selectedId = null;
+    renderInspector();
+    highlightSelection();
+    showVoidContextMenu(e.clientX, e.clientY);
+  }
+});
+el("cmDeleteAll").addEventListener("click", ()=>{
+  hideVoidContextMenu();
+  if(nodes.length) clearCanvas();
+});
+window.addEventListener("mousedown", (e)=>{
+  if(!voidContextMenu.contains(e.target)) hideVoidContextMenu();
+});
+window.addEventListener("scroll", hideVoidContextMenu, true);
+canvasWrap.addEventListener("wheel", hideVoidContextMenu);
+document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") hideVoidContextMenu(); });
+
+/* ============================== ANNOTATION (test-mode markup) ============================== */
+const ANNOTATE_COLORS = ["#22D3EE","#22C55E","#EF4444","#EAB308","#F472B6","#F8FAFC"];
+const annotateCanvas = el("annotateCanvas");
+const actx = annotateCanvas.getContext("2d");
+let annotateActive = false;
+let annotateMode = "draw"; // "draw" | "erase"
+let annotateColor = ANNOTATE_COLORS[0];
+let annotateStroke = null; // {lastX,lastY}
+let annotateDPR = Math.max(1, window.devicePixelRatio || 1);
+
+function resizeAnnotateCanvas(){
+  const w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
+  // preserve current drawing across a resize
+  const prev = document.createElement("canvas");
+  prev.width = annotateCanvas.width; prev.height = annotateCanvas.height;
+  if(annotateCanvas.width>0 && annotateCanvas.height>0) prev.getContext("2d").drawImage(annotateCanvas,0,0);
+  annotateDPR = Math.max(1, window.devicePixelRatio || 1);
+  annotateCanvas.width = Math.round(w*annotateDPR);
+  annotateCanvas.height = Math.round(h*annotateDPR);
+  annotateCanvas.style.width = w+"px";
+  annotateCanvas.style.height = h+"px";
+  actx.setTransform(annotateDPR,0,0,annotateDPR,0,0);
+  if(prev.width>0 && prev.height>0) actx.drawImage(prev,0,0, prev.width/annotateDPR, prev.height/annotateDPR);
+}
+window.addEventListener("resize", resizeAnnotateCanvas);
+document.addEventListener("fullscreenchange", ()=> setTimeout(resizeAnnotateCanvas, 50));
+resizeAnnotateCanvas();
+
+function buildAnnotateSwatches(){
+  const wrap = el("annotateSwatches"); wrap.innerHTML = "";
+  ANNOTATE_COLORS.forEach(c=>{
+    const sw = document.createElement("div");
+    sw.className = "annotate-swatch" + (c===annotateColor ? " active" : "");
+    sw.style.background = c;
+    sw.style.color = c;
+    sw.title = "Annotate in this color";
+    sw.addEventListener("click", ()=>{
+      annotateColor = c;
+      wrap.querySelectorAll(".annotate-swatch").forEach(s=>s.classList.remove("active"));
+      sw.classList.add("active");
+      if(!annotateActive || annotateMode!=="draw") setAnnotateTool("draw");
+    });
+    wrap.appendChild(sw);
+  });
+}
+buildAnnotateSwatches();
+
+function setAnnotateActive(next){
+  annotateActive = next;
+  el("annotatePenBtn").classList.toggle("on", annotateActive && annotateMode==="draw");
+  el("annotateEraserBtn").classList.toggle("on", annotateActive && annotateMode==="erase");
+  annotateCanvas.classList.toggle("active", annotateActive);
+  annotateCanvas.classList.toggle("erasing", annotateActive && annotateMode==="erase");
+}
+function setAnnotateTool(tool){
+  if(annotateActive && annotateMode===tool){ setAnnotateActive(false); return; }
+  annotateMode = tool;
+  setAnnotateActive(true);
+}
+el("annotatePenBtn").addEventListener("click", ()=> setAnnotateTool("draw"));
+el("annotateEraserBtn").addEventListener("click", ()=> setAnnotateTool("erase"));
+el("annotateClearBtn").addEventListener("click", ()=>{
+  actx.clearRect(0,0,annotateCanvas.width/annotateDPR, annotateCanvas.height/annotateDPR);
+});
+
+function annotatePointerPos(e){
+  const rect = annotateCanvas.getBoundingClientRect();
+  return { x: e.clientX-rect.left, y: e.clientY-rect.top };
+}
+function drawGlowDot(x,y){
+  actx.save();
+  if(annotateMode==="erase"){
+    actx.globalCompositeOperation = "destination-out";
+    actx.beginPath(); actx.arc(x,y,13,0,Math.PI*2); actx.fill();
+  } else {
+    actx.fillStyle = annotateColor;
+    actx.shadowColor = annotateColor;
+    actx.shadowBlur = 12;
+    actx.beginPath(); actx.arc(x,y,3,0,Math.PI*2); actx.fill();
+  }
+  actx.restore();
+}
+annotateCanvas.addEventListener("mousedown", (e)=>{
+  if(!annotateActive || e.button!==0) return;
+  e.stopPropagation();
+  const {x,y} = annotatePointerPos(e);
+  annotateStroke = {lastX:x, lastY:y};
+  drawGlowDot(x,y);
+});
+window.addEventListener("mousemove", (e)=>{
+  if(!annotateActive || !annotateStroke) return;
+  const {x,y} = annotatePointerPos(e);
+  actx.save();
+  if(annotateMode==="erase"){
+    actx.globalCompositeOperation = "destination-out";
+    actx.lineWidth = 26;
+    actx.lineCap = "round"; actx.lineJoin = "round";
+    actx.beginPath();
+    actx.moveTo(annotateStroke.lastX, annotateStroke.lastY);
+    actx.lineTo(x,y);
+    actx.stroke();
+  } else {
+    actx.strokeStyle = annotateColor;
+    actx.lineWidth = 3.5;
+    actx.lineCap = "round"; actx.lineJoin = "round";
+    actx.shadowColor = annotateColor;
+    actx.shadowBlur = 14;
+    actx.beginPath();
+    actx.moveTo(annotateStroke.lastX, annotateStroke.lastY);
+    actx.lineTo(x,y);
+    actx.stroke();
+  }
+  actx.restore();
+  annotateStroke.lastX = x; annotateStroke.lastY = y;
+});
+window.addEventListener("mouseup", ()=>{ annotateStroke = null; });
+window.addEventListener("blur", ()=>{ annotateStroke = null; });
+
+function showAnnotateBar(show){
+  el("annotateBar").classList.toggle("visible", show);
+  if(!show){
+    setAnnotateActive(false);
+    actx.clearRect(0,0,annotateCanvas.width/annotateDPR, annotateCanvas.height/annotateDPR);
+  }
+}
+
+/* ============================== TEST / EDIT MODE ============================== */
+function setTestMode(next){
+  testMode = next;
+  const btn = el("testBtn"), lbl = el("testBtnLabel");
+  const fsBtn = el("fsTestBtn"), fsLbl = el("fsTestBtnLabel");
+  if(testMode){
+    btn.classList.add("editing"); lbl.textContent="EDIT CIRCUIT";
+    fsBtn.classList.add("editing"); fsLbl.textContent="EDIT CIRCUIT";
+    verifyOpen = true; renderVerifyToggle();
+    flashResult();
+    el("fsIOPanel").style.opacity = "0.4"; el("fsIOPanel").style.pointerEvents = "none";
+    el("fsGatesPanel").style.opacity = "0.4"; el("fsGatesPanel").style.pointerEvents = "none";
+    resizeAnnotateCanvas();
+    showAnnotateBar(true);
+  } else {
+    el("fsIOPanel").style.opacity = "1"; el("fsIOPanel").style.pointerEvents = "auto";
+    el("fsGatesPanel").style.opacity = "1"; el("fsGatesPanel").style.pointerEvents = "auto";
+    btn.classList.remove("editing"); lbl.textContent="TEST CIRCUIT";
+    fsBtn.classList.remove("editing"); fsLbl.textContent="TEST CIRCUIT";
+    factPopup.style.display = "none";
+    showAnnotateBar(false);
+  }
+  render();
+}
+el("testBtn").addEventListener("click", ()=> setTestMode(!testMode));
+el("fsTestBtn").addEventListener("click", ()=> setTestMode(!testMode));
+
+function flashResult(){
+  const box = el("verifyBox");
+  box.classList.add("badge-pulse");
+  setTimeout(()=>box.classList.remove("badge-pulse"), 700);
+}
+
+/* ============================== FULLSCREEN ============================== */
+el("fullscreenBtn").addEventListener("click", ()=>{
+  el("app").classList.add("fullscreen");
+  document.documentElement.requestFullscreen?.().catch(()=>{});
+});
+el("exitFsBtn").addEventListener("click", exitFullscreen);
+function exitFullscreen(){
+  el("app").classList.remove("fullscreen");
+  if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+}
+document.addEventListener("fullscreenchange", ()=>{
+  if(!document.fullscreenElement) el("app").classList.remove("fullscreen");
+});
+document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") exitFullscreen(); });
+
+/* header buttons */
+el("clearBtn").addEventListener("click", clearCanvas);
+el("exportBtn").addEventListener("click", exportCircuit);
+el("zoomOutBtn").addEventListener("click", ()=>{ zoom=Math.max(0.4,+(zoom-0.1).toFixed(2)); applyTransform(); });
+el("zoomInBtn").addEventListener("click", ()=>{ zoom=Math.min(1.8,+(zoom+0.1).toFixed(2)); applyTransform(); });
+el("verifyToggle").addEventListener("click", ()=>{ verifyOpen=!verifyOpen; renderVerifyToggle(); });
+function renderVerifyToggle(){
+  el("verifyBox").style.display = verifyOpen ? "block" : "none";
+  el("verifyChevron").innerHTML = verifyOpen
+    ? '<path d="m18 15-6-6-6 6"/>'
+    : '<path d="m6 9 6 6 6-6"/>';
+}
+
+/* ============================== RENDER: NODES ============================== */
+function positionNode(node){
+  const domEl = document.getElementById("dom_"+node.id);
+  if(!domEl) return;
+  domEl.style.left = node.x+"px";
+  domEl.style.top = node.y+"px";
+}
+
+function renderNodes(values){
+  nodeLayer.innerHTML = "";
+  const exprs = testMode ? computeExpressions() : null;
+  nodes.forEach(node=>{
+    const {w,h} = nodeSize(node.type);
+    const val = values[node.id];
+    const isSelected = selectedId===node.id;
+    const isIO = node.type==="INPUT"||node.type==="OUTPUT";
+    const pins = pinPositions(node);
+
+    const d = document.createElement("div");
+    d.id = "dom_"+node.id;
+    d.className = "node" + (testMode?" test-mode":"");
+    d.style.left = node.x+"px"; d.style.top = node.y+"px";
+    d.style.width = w+"px"; d.style.height = h+"px";
+    d.style.borderColor = isSelected ? C.cyan : (val===1 ? "rgba(34,197,94,0.55)" : "");
+    d.style.boxShadow = val===1 ? `0 0 18px ${C.emeraldGlow}` : "none";
+
+    const label = document.createElement("div"); label.className="nlabel mono"; label.textContent = node.label;
+    d.appendChild(label);
+
+    const inner = document.createElement("div"); inner.className="ninner";
+    if(node.type==="INPUT"){
+      const btn = document.createElement("button");
+      btn.className = "switch-btn mono" + (val===1?" on":"");
+      btn.innerHTML = `<span class="dot"></span>${node.label} = ${val}`;
+      btn.style.cursor = (node.locked||node.isClock) ? "default" : "pointer";
+      btn.addEventListener("mousedown", e=>e.stopPropagation());
+      btn.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        if(testMode){ showFact("INPUT", e.clientX, e.clientY); return; }
+        if(!node.locked && !node.isClock) toggleInput(node.id);
+      });
+      inner.appendChild(btn);
+    } else if(node.type==="OUTPUT"){
+      const circ = document.createElement("div");
+      circ.className = "led-circle" + (val===1?" on":(val===null?" hiz":""));
+      circ.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+(val===1?C.emerald:(val===null?C.hiz:"#64748B"))+'" stroke-width="2"><path d="M9 18h6M10 22h4M15.09 14A5 5 0 1 0 9 14 6 6 0 0 1 12 21a6 6 0 0 1 3-7Z"/></svg>';
+      inner.appendChild(circ);
+      const valDiv = document.createElement("div"); valDiv.className="led-val mono";
+      valDiv.textContent = val===null?"Hi-Z":val;
+      inner.appendChild(valDiv);
+    } else {
+      const glyph = document.createElement("div"); glyph.innerHTML = gateGlyphSVG(node.type, val===1);
+      inner.appendChild(glyph);
+      const lbl = document.createElement("div"); lbl.className = "gate-glabel mono"+(val===1?" on":"");
+      lbl.textContent = node.label; inner.appendChild(lbl);
+    }
+    d.appendChild(inner);
+
+    // boolean-expression badge (test mode only) — shows the algebraic expression at this output
+    if(testMode && node.type!=="INPUT" && exprs && exprs[node.id]){
+      const e = exprs[node.id];
+      const badge = document.createElement("div");
+      badge.className = "expr-badge mono" + (val===1?" on":"");
+      badge.innerHTML = node.type==="OUTPUT" ? `${escapeHtml(node.label)} = ${e.html}` : e.html;
+      badge.style.left = (w+10)+"px";
+      badge.style.top = (h/2-11)+"px";
+      d.appendChild(badge);
+    }
+
+    // pins (hidden interaction in test mode, kept visible dim)
+    pins.inputs.forEach((p,i)=>{
+      const pin = document.createElement("div"); pin.className="pin in";
+      pin.style.left=(p.x-6)+"px"; pin.style.top=(p.y-6)+"px";
+      pin.title = `Input ${i===0?"A":"B"}`;
+      pin.style.opacity = testMode ? "0.35" : "1";
+      pin.style.pointerEvents = testMode ? "none" : "auto";
+      pin.addEventListener("mouseup", (e)=>{ e.stopPropagation(); finishConnect(node.id, i); });
+      d.appendChild(pin);
+    });
+    pins.outputs.forEach((p)=>{
+      const pin = document.createElement("div"); pin.className="pin out";
+      pin.style.left=(p.x-6)+"px"; pin.style.top=(p.y-6)+"px";
+      pin.style.background = val===1 ? C.emerald : C.card;
+      pin.style.borderColor = val===1 ? C.emerald : C.cyan;
+      pin.style.boxShadow = val===1 ? `0 0 8px ${C.emerald}` : "none";
+      pin.title = "Output";
+      pin.style.opacity = testMode ? "0.35" : "1";
+      pin.style.pointerEvents = testMode ? "none" : "auto";
+      pin.addEventListener("mousedown", (e)=>{ e.stopPropagation(); startConnect(node.id); });
+      d.appendChild(pin);
+    });
+
+    // node body interactions
+    d.addEventListener("mousedown", (e)=>{
+      if(e.button!==0) return;
+      if(e.target.closest(".pin") || e.target.closest(".switch-btn")) return;
+      e.stopPropagation();
+      selectedId = node.id;
+      renderInspector();
+      if(testMode){
+        showFact(node.type, e.clientX, e.clientY);
+        return;
+      }
+      const {x,y} = toWorld(e.clientX, e.clientY);
+      dragging = { id: node.id, offX: x-node.x, offY: y-node.y, historyPushed:false };
+      highlightSelection();
+    });
+    d.addEventListener("contextmenu", (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      selectedId = node.id;
+      renderInspector();
+      highlightSelection();
+      showContextMenu(node, e.clientX, e.clientY);
+    });
+
+    nodeLayer.appendChild(d);
+  });
+  highlightSelection();
+}
+function highlightSelection(){
+  nodes.forEach(n=>{
+    const d = document.getElementById("dom_"+n.id);
+    if(!d) return;
+    d.style.borderColor = selectedId===n.id ? C.cyan : "";
+  });
+}
+
+/* ============================== RENDER: WIRES ============================== */
+function renderWires(values){
+  values = values || evaluateAll(nodes, edges);
+  wireLayer.innerHTML = "";
+  edges.forEach(e=>{
+    const fromNode = nodes.find(n=>n.id===e.from);
+    const toNode = nodes.find(n=>n.id===e.to);
+    if(!fromNode||!toNode) return;
+    const fp = pinPositions(fromNode).outputs[0];
+    const tp = pinPositions(toNode).inputs[e.toPort];
+    if(!fp||!tp) return;
+    const x1=fromNode.x+fp.x, y1=fromNode.y+fp.y, x2=toNode.x+tp.x, y2=toNode.y+tp.y;
+    const dx = Math.max(50, Math.abs(x2-x1)*0.4);
+    const path = `M ${x1} ${y1} C ${x1+dx} ${y1}, ${x2-dx} ${y2}, ${x2} ${y2}`;
+    const val = values[e.from];
+    // Rule: only animate/flow when the wire's value is actually HIGH (1).
+    // Off (0) or unknown/Hi-Z (null) => static, no flow.
+    const isLive = val===1;
+    const isHiz = val===null || val===undefined;
+    const stroke = isLive ? C.emerald : (isHiz ? C.hiz : C.low);
+    const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+    p.setAttribute("d", path);
+    p.setAttribute("fill","none");
+    p.setAttribute("stroke", stroke);
+    p.setAttribute("stroke-width", isLive?"3":"2.5");
+    p.setAttribute("class", isLive?"wire-live":(isHiz?"wire-hiz":""));
+    if(isLive) p.setAttribute("style","filter:url(#wireGlow)");
+    p.style.pointerEvents = "stroke";
+    p.style.cursor = testMode ? "pointer" : "default";
+    p.addEventListener("mousedown", (evt)=>{
+      if(testMode){ evt.stopPropagation(); showFact("WIRE", evt.clientX, evt.clientY); }
+    });
+    wireLayer.appendChild(p);
+  });
+}
+function renderTempWire(){
+  tempWireLayer.innerHTML = "";
+  if(!connecting) return;
+  const fromNode = nodes.find(n=>n.id===connecting.fromId);
+  if(!fromNode) return;
+  const fp = pinPositions(fromNode).outputs[0];
+  const x1=fromNode.x+fp.x, y1=fromNode.y+fp.y;
+  const dx = Math.max(50, Math.abs(cursorWorld.x-x1)*0.4);
+  const path = `M ${x1} ${y1} C ${x1+dx} ${y1}, ${cursorWorld.x-dx} ${cursorWorld.y}, ${cursorWorld.x} ${cursorWorld.y}`;
+  const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+  p.setAttribute("d",path); p.setAttribute("fill","none"); p.setAttribute("stroke",C.cyan);
+  p.setAttribute("stroke-width","2"); p.setAttribute("stroke-dasharray","4 4");
+  tempWireLayer.appendChild(p);
+}
+function startConnect(fromId){
+  if(testMode) return;
+  connecting = { fromId };
+}
+function finishConnect(toId, toPort){
+  if(testMode) return;
+  if(!connecting){ renderTempWire(); return; }
+  const fromId = connecting.fromId;
+  connecting = null;
+  tempWireLayer.innerHTML = ""; // always clear the preview line immediately, regardless of outcome
+  if(fromId===toId) return;
+  pushHistory();
+  edges = edges.filter(ed=>!(ed.to===toId && ed.toPort===toPort));
+  edges.push({id:uid("e"), from:fromId, to:toId, toPort});
+  render();
+}
+
+/* ============================== RENDER: TRUTH STRIP + VERIFY PANEL ============================== */
+function computeTruth(){
+  const inputNodes = nodes.filter(n=>n.type==="INPUT" && !n.locked && !n.isClock).sort((a,b)=>a.y-b.y);
+  const outputNodes = nodes.filter(n=>n.type==="OUTPUT");
+  const primaryOutput = outputNodes[0];
+  const n = inputNodes.length;
+  let rows = null;
+  if(n>0 && n<=4 && primaryOutput){
+    rows = [];
+    for(let mask=0; mask<(1<<n); mask++){
+      const overrides = {}; const combo = [];
+      inputNodes.forEach((node,i)=>{ const bit=(mask>>(n-1-i))&1; overrides[node.id]=bit; combo.push(bit); });
+      const result = evaluateAll(nodes, edges, overrides);
+      rows.push({combo, out: result[primaryOutput.id]});
+    }
+  }
+  return {inputNodes, outputNodes, primaryOutput, rows};
+}
+
+/* Auto-detect which named gate the current wired circuit behaves like, purely
+   from its truth table (independent of the live toggle values). */
+function detectGateType(truth){
+  if(!truth.rows || !truth.rows.length) return null;
+  const arity = truth.inputNodes.length;
+  for(const name of Object.keys(TARGETS)){
+    const t = TARGETS[name];
+    if(t.arity !== arity) continue;
+    let matches = true;
+    for(const row of truth.rows){
+      if(row.out !== t.fn(...row.combo)){ matches = false; break; }
+    }
+    if(matches) return name;
+  }
+  return null;
+}
+function topologySignature(){
+  const n = nodes.map(n=>n.id+":"+n.type).sort().join("|");
+  const e = edges.map(e=>e.from+">"+e.to+":"+e.toPort).sort().join("|");
+  return n+"##"+e;
+}
+
+let truthStripBuilt = false;
+function ensureTruthStrip(){
+  if(truthStripBuilt) return;
+  const strip = document.createElement("div");
+  strip.id = "truthStrip";
+  strip.innerHTML = `<div class="strip-title">Live Truth Table</div><div id="stripBody" style="display:flex;gap:6px;align-items:center;"></div>`;
+  el("canvasArea").insertBefore(strip, document.getElementById("modeHint").nextSibling);
+  truthStripBuilt = true;
+}
+ensureTruthStrip();
+
+function renderTruthStrip(truth, currentCombo){
+  const body = document.getElementById("stripBody");
+  if(!truth.rows){
+    body.innerHTML = `<div style="font-size:12px;color:var(--textDim);">Add up to 4 toggle inputs and an LED output to populate the truth table.</div>`;
+    return;
+  }
+  body.innerHTML = "";
+  truth.rows.forEach(row=>{
+    const isCurrent = row.combo.every((b,i)=>b===currentCombo[i]);
+    const chip = document.createElement("div");
+    chip.className = "chip mono" + (isCurrent?" current":"");
+    chip.textContent = `${row.combo.join("")} → ${row.out===null?"Z":row.out}`;
+    body.appendChild(chip);
+  });
+}
+
+function renderVerify(truth, currentCombo, detectedGoal){
+  const target = TARGETS[goal];
+  const inputNodes = truth.inputNodes;
+  const ttContainer = el("ttContainer");
+  const resultContainer = el("resultContainer");
+
+  const gateCounts = {};
+  nodes.forEach(n=>{ if(n.type!=="INPUT" && n.type!=="OUTPUT") gateCounts[n.type]=(gateCounts[n.type]||0)+1; });
+  const gateCountLabel = Object.entries(gateCounts).map(([t,c])=>`${c} ${t}`).join(", ");
+  const totalGates = Object.values(gateCounts).reduce((a,b)=>a+b,0);
+
+  function discoverBoxHtml(name, sub){
+    return `<div class="result-box discover">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M12 2 15 8.5 22 9.5 17 14.5 18.5 21.5 12 18 5.5 21.5 7 14.5 2 9.5 9 8.5 12 2Z"/></svg>
+      <div class="result-title" style="color:var(--cyan)">🔎 That's actually a ${name} gate!</div>
+      <div class="result-sub" style="color:#7DD3FC">${sub}</div>
+      <button id="setDetectedGoalBtn" class="preset-btn" style="margin:12px auto 0;width:auto;display:inline-block;padding:7px 16px;text-align:center;">Switch target to ${name}</button>
+    </div>`;
+  }
+  function wireDiscoverBtn(){
+    const btn = document.getElementById("setDetectedGoalBtn");
+    if(btn) btn.addEventListener("click", ()=>{ goal = detectedGoal; goalManuallySet = true; render(); });
+  }
+
+  let verification;
+  if(!target || !truth.rows){
+    verification = {status:"unavailable", reason:"Add a matching number of inputs and an output LED."};
+  } else if(inputNodes.length !== target.arity){
+    verification = {status:"unavailable", reason:`Target "${goal}" needs exactly ${target.arity} input${target.arity>1?"s":""}, board has ${inputNodes.length}.`};
+  } else {
+    let allMatch = true;
+    const rows = truth.rows.map(r=>{
+      const expected = target.fn(...r.combo);
+      const match = r.out === expected;
+      if(!match) allMatch = false;
+      return {...r, expected, match};
+    });
+    verification = { status: allMatch?"pass":"fail", rows };
+  }
+
+  if(verification.status==="unavailable"){
+    ttContainer.innerHTML = `<div class="unavailable-box">${verification.reason}</div>`;
+    if(detectedGoal){
+      resultContainer.innerHTML = discoverBoxHtml(detectedGoal, `Switch the pinned target to verify it as a ${detectedGoal} gate.`);
+      wireDiscoverBtn();
+    } else {
+      resultContainer.innerHTML = "";
+    }
+    return;
+  }
+
+  let tableHtml = `<div id="ttWrap"><table><thead><tr>`;
+  inputNodes.forEach(n=> tableHtml += `<th>${n.label}</th>`);
+  tableHtml += `<th>Out</th><th>Exp</th></tr></thead><tbody>`;
+  verification.rows.forEach(row=>{
+    const isCurrent = row.combo.every((b,i)=>b===currentCombo[i]);
+    tableHtml += `<tr style="background:${isCurrent?'rgba(34,197,94,0.12)':'transparent'}">`;
+    row.combo.forEach(b=> tableHtml += `<td style="color:${isCurrent?'var(--text)':'var(--textDim)'}">${b}</td>`);
+    tableHtml += `<td style="font-weight:700;color:${row.out===1?'var(--emerald)':row.out===null?'var(--hiz)':'#94A3B8'}">${row.out===null?"Z":row.out}</td>`;
+    tableHtml += `<td style="color:${row.match?'var(--emerald)':'var(--danger)'}">${row.expected}${row.match?" ✓":" ✗"}</td>`;
+    tableHtml += `</tr>`;
+  });
+  tableHtml += `</tbody></table></div>`;
+  ttContainer.innerHTML = tableHtml;
+
+  if(verification.status==="pass"){
+    resultContainer.innerHTML = `<div class="result-box pass badge-pulse">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+      <div class="result-title" style="color:var(--emerald)">🎉 Success! Verified valid ${goal} gate construction</div>
+      <div class="result-sub mono" style="color:#86EFAC">${gateCountLabel?`(${gateCountLabel} gate${totalGates>1?"s":""} used)`:"(no gates placed)"}</div>
+    </div>`;
+  } else if(detectedGoal){
+    resultContainer.innerHTML = discoverBoxHtml(detectedGoal, `It doesn't match the pinned target (${goal}), but it correctly implements ${detectedGoal}.`);
+    wireDiscoverBtn();
+  } else {
+    resultContainer.innerHTML = `<div class="result-box fail">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
+      <div class="result-title" style="color:var(--danger)">Not yet a valid ${goal} gate</div>
+      <div class="result-sub" style="color:#FCA5A5">Some input combinations don't match the target output.</div>
+    </div>`;
+  }
+}
+
+function renderInspector(){
+  const node = nodes.find(n=>n.id===selectedId);
+  const box = el("inspector");
+  if(!node){ box.style.display="none"; return; }
+  box.style.display="block";
+  box.innerHTML = `<div class="insp-title">Selected Component</div>
+    <div class="insp-name">${node.type} · ${node.label}</div>
+    <div class="insp-id">id: ${node.id}</div>
+    <button id="deleteBtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg> Delete Component</button>`;
+  el("deleteBtn").addEventListener("click", removeSelected);
+}
+
+/* ============================== MASTER RENDER ============================== */
+function render(){
+  const values = evaluateAll(nodes, edges);
+  renderNodes(values);
+  renderWires(values);
+  const truth = computeTruth();
+  const currentCombo = truth.inputNodes.map(n=>n.value);
+  renderTruthStrip(truth, currentCombo);
+
+  const sig = topologySignature();
+  const structureChanged = sig !== lastTopologySignature;
+  if(structureChanged){ lastTopologySignature = sig; goalManuallySet = false; }
+  const detectedGoal = detectGateType(truth);
+  let goalJustChanged = false;
+  if(!goalManuallySet && detectedGoal && detectedGoal !== goal){
+    goal = detectedGoal;
+    goalJustChanged = true;
+  }
+  positionGoalIndicator();
+  updateAutoTag(detectedGoal, goalJustChanged);
+
+  renderVerify(truth, currentCombo, detectedGoal);
+  renderInspector();
+}
+
+applyTransform();
+renderVerifyToggle();
+render();
+</script>
+</body>
+</html>
